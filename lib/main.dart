@@ -43,7 +43,8 @@ Future<void> _initializeStorage() async {
   }
 
   try {
-    final applicationSupportDirectory = await getApplicationSupportDirectory();
+    final applicationSupportDirectory =
+        await getApplicationSupportDirectory();
     final storageDirectory =
         Directory('${applicationSupportDirectory.path}/TTS Mod Vault');
     final documentsDirectory = await getApplicationDocumentsDirectory();
