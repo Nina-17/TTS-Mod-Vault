@@ -1,8 +1,10 @@
-import 'dart:io' show File, Platform;
+import 'dart:io' show Directory, File, Platform;
 
 import 'package:flutter/material.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart' show Hive, HiveX;
 import 'package:hooks_riverpod/hooks_riverpod.dart' show ProviderScope;
+import 'package:path_provider/path_provider.dart'
+    show getApplicationDocumentsDirectory, getApplicationSupportDirectory;
 import 'package:pdfrx_engine/pdfrx_engine.dart' show Pdfrx, pdfrxInitialize;
 import 'package:window_manager/window_manager.dart'
     show WindowOptions, windowManager;
@@ -11,7 +13,7 @@ import 'src/app.dart' show App;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
-  await Hive.initFlutter('TTS Mod Vault');
+  await _initializeStorage();
   _configurePdfiumModulePath();
   await pdfrxInitialize();
 
@@ -27,6 +29,58 @@ void main() async {
   });
 
   runApp(ProviderScope(child: App()));
+}
+
+/// Initializes Hive in the standard macOS application-support directory.
+///
+/// Older releases used Hive's Flutter default, which placed the database in
+/// `~/Documents/TTS Mod Vault`. On the first launch after upgrading, migrate
+/// the existing database files once so settings and cached metadata survive.
+Future<void> _initializeStorage() async {
+  if (!Platform.isMacOS) {
+    await Hive.initFlutter('TTS Mod Vault');
+    return;
+  }
+
+  try {
+    final applicationSupportDirectory = await getApplicationSupportDirectory();
+    final storageDirectory =
+        Directory('${applicationSupportDirectory.path}/TTS Mod Vault');
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final legacyDirectory =
+        Directory('${documentsDirectory.path}/TTS Mod Vault');
+
+    await storageDirectory.create(recursive: true);
+    if (!await _containsHiveData(storageDirectory) &&
+        await legacyDirectory.exists()) {
+      await _migrateHiveData(legacyDirectory, storageDirectory);
+    }
+
+    Hive.init(storageDirectory.path);
+  } catch (error) {
+    // Keep existing installations usable if Application Support is unavailable.
+    debugPrint('Failed to initialize Application Support storage: $error');
+    await Hive.initFlutter('TTS Mod Vault');
+  }
+}
+
+Future<bool> _containsHiveData(Directory directory) async {
+  await for (final entity in directory.list(followLinks: false)) {
+    if (entity is File && entity.path.endsWith('.hive')) return true;
+  }
+  return false;
+}
+
+Future<void> _migrateHiveData(
+  Directory legacyDirectory,
+  Directory storageDirectory,
+) async {
+  await for (final entity in legacyDirectory.list(followLinks: false)) {
+    if (entity is! File || entity.path.endsWith('.lock')) continue;
+
+    final fileName = entity.uri.pathSegments.last;
+    await entity.copy('${storageDirectory.path}/$fileName');
+  }
 }
 
 /// Points pdfrx at the pdfium dynamic library bundled with the app.
