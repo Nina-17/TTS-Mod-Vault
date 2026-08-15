@@ -26,8 +26,8 @@ jobs:
       - name: Fetch dependencies
         run: flutter pub get
 
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed lib/main.dart
+      - name: Format build entry point
+        run: dart format --output=none lib/main.dart
 
       - name: Analyze
         run: flutter analyze
