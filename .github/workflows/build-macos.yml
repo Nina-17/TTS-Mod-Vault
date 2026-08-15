@@ -33,6 +33,7 @@ jobs:
         run: flutter analyze
 
       - name: Test
+        if: ${{ hashFiles('test/**') != '' }}
         run: flutter test
 
       - name: Build release app and disk image
