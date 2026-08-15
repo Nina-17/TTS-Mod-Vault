@@ -1,0 +1,49 @@
+name: Build macOS app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Apple Silicon app
+    runs-on: macos-15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.4
+          architecture: arm64
+          cache: true
+
+      - name: Fetch dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build release app and disk image
+        run: bash packaging/macos/build_dmg.sh
+
+      - name: Verify Apple Silicon executable
+        run: file 'build/macos/Build/Products/Release/TTS Mod Vault.app/Contents/MacOS/TTS Mod Vault' | grep arm64
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TTS-Mod-Vault-macos-arm64
+          path: build/macos/Build/Products/Release/TTS Mod Vault.app
+          if-no-files-found: error
