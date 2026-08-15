@@ -42,9 +42,15 @@ jobs:
       - name: Verify Apple Silicon executable
         run: file 'build/macos/Build/Products/Release/TTS Mod Vault.app/Contents/MacOS/TTS Mod Vault' | grep arm64
 
+      - name: Archive signed app
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            'build/macos/Build/Products/Release/TTS Mod Vault.app' \
+            build/TTS-Mod-Vault-macos-arm64.zip
+
       - name: Upload app artifact
         uses: actions/upload-artifact@v4
         with:
           name: TTS-Mod-Vault-macos-arm64
-          path: build/macos/Build/Products/Release/TTS Mod Vault.app
+          path: build/TTS-Mod-Vault-macos-arm64.zip
           if-no-files-found: error
