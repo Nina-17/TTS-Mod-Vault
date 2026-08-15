@@ -31,11 +31,14 @@ void main() async {
   runApp(ProviderScope(child: App()));
 }
 
-/// Initializes Hive in the standard macOS application-support directory.
+/// Initializes Hive in `~/Library/Application Support/TTS Mod Vault`.
 ///
-/// Older releases used Hive's Flutter default, which placed the database in
-/// `~/Documents/TTS Mod Vault`. On the first launch after upgrading, migrate
-/// the existing database files once so settings and cached metadata survive.
+/// Older releases used Hive's Flutter default at `~/Documents/TTS Mod Vault`.
+/// The first macOS fork build also appended the app name to path_provider's
+/// already app-specific directory, producing
+/// `~/Library/Application Support/io.github.markomijic.ttsModVault/`
+/// `TTS Mod Vault`. Migrate either location once so settings and cached
+/// metadata survive.
 Future<void> _initializeStorage() async {
   if (!Platform.isMacOS) {
     await Hive.initFlutter('TTS Mod Vault');
@@ -46,15 +49,25 @@ Future<void> _initializeStorage() async {
     final applicationSupportDirectory =
         await getApplicationSupportDirectory();
     final storageDirectory =
+        Directory('${applicationSupportDirectory.parent.path}/TTS Mod Vault');
+    final nestedStorageDirectory =
         Directory('${applicationSupportDirectory.path}/TTS Mod Vault');
     final documentsDirectory = await getApplicationDocumentsDirectory();
     final legacyDirectory =
         Directory('${documentsDirectory.path}/TTS Mod Vault');
 
     await storageDirectory.create(recursive: true);
-    if (!await _containsHiveData(storageDirectory) &&
-        await legacyDirectory.exists()) {
-      await _migrateHiveData(legacyDirectory, storageDirectory);
+    if (!await _containsHiveData(storageDirectory)) {
+      for (final migrationDirectory in [
+        nestedStorageDirectory,
+        legacyDirectory,
+      ]) {
+        if (await migrationDirectory.exists() &&
+            await _containsHiveData(migrationDirectory)) {
+          await _migrateHiveData(migrationDirectory, storageDirectory);
+          break;
+        }
+      }
     }
 
     Hive.init(storageDirectory.path);
@@ -80,7 +93,8 @@ Future<void> _migrateHiveData(
     if (entity is! File || entity.path.endsWith('.lock')) continue;
 
     final fileName = entity.uri.pathSegments.last;
-    await entity.copy('${storageDirectory.path}/$fileName');
+    final destination = File('${storageDirectory.path}/$fileName');
+    if (!await destination.exists()) await entity.copy(destination.path);
   }
 }
 
